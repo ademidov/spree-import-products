@@ -1,0 +1,2 @@
+"1.0.x" => { :branch => "spree-1.0" }
+"0.7.x" => { :ref => "2bcca17f140fd4b8fab200eaf0d6636b2476ea4d" }
