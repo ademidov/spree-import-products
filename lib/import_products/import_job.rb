@@ -12,9 +12,9 @@ module ImportProducts
       begin
         product_import = ProductImport.find(self.product_import_id)
         results = product_import.import_data!
-        UserMailer.product_import_results(User.find(self.user_id)).deliver
+        Spree::UserMailer.product_import_results(Spree::User.find(self.user_id)).deliver
       rescue Exception => exp
-        UserMailer.product_import_results(User.find(self.user_id), exp.message).deliver
+        Spree::UserMailer.product_import_results(Spree::User.find(self.user_id), exp.message).deliver
       end
     end
   end

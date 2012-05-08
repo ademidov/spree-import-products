@@ -22,12 +22,8 @@ class ProductImport < ActiveRecord::Base
   def import_data!
     begin
       #Get products *before* import -
-      @products_before_import = Product.all
-      @names_of_products_before_import = []
-      @products_before_import.each do |product|
-        @names_of_products_before_import << product.name
-      end
-      log("#{@names_of_products_before_import}")
+      @products_before_import = Spree::Product.all
+      @names_of_products_before_import = @products_before_import.map(&:name)
 
       rows = CSV.read(self.data_file.path)
 
@@ -39,36 +35,34 @@ class ProductImport < ActiveRecord::Base
 
       log("Importing products for #{self.data_file_file_name} began at #{Time.now}")
       rows[IMPORT_PRODUCT_SETTINGS[:rows_to_skip]..-1].each do |row|
+
         product_information = {}
 
         #Automatically map 'mapped' fields to a collection of product information.
         #NOTE: This code will deal better with the auto-mapping function - i.e. if there
         #are named columns in the spreadsheet that correspond to product
         # and variant field names.
+
         col.each do |key, value|
+          #Trim whitespace off the beginning and end of row fields
+          row[value].try :strip!
           product_information[key] = row[value]
         end
 
-
         #Manually set available_on if it is not already set
-        product_information[:available_on] = DateTime.now - 1.day if product_information[:available_on].nil?
+        product_information[:available_on] = Date.today - 1.day if product_information[:available_on].nil?
+        log("#{pp product_information}")
 
+        variant_comparator_field = IMPORT_PRODUCT_SETTINGS[:variant_comparator_field].try :to_sym
+        variant_comparator_column = col[variant_comparator_field]
 
-        #Trim whitespace off the beginning and end of row fields
-        row.each do |r|
-          next unless r.is_a?(String)
-          r.gsub!(/\A\s*/, '').chomp!
-        end
+        if IMPORT_PRODUCT_SETTINGS[:create_variants] and variant_comparator_column and
+            p = Spree::Product.where(variant_comparator_field => row[variant_comparator_column]).first
 
-        if IMPORT_PRODUCT_SETTINGS[:create_variants]
-          field = IMPORT_PRODUCT_SETTINGS[:variant_comparator_field].to_s
-          if p = Product.find(:first, :conditions => ["#{field} = ?", row[col[field.to_sym]]])
-            p.update_attribute(:deleted_at, nil) if p.deleted_at #Un-delete product if it is there
-            p.variants.each { |variant| variant.update_attribute(:deleted_at, nil) }
-            create_variant_for(p, :with => product_information)
-          else
-            next unless create_product_using(product_information)
-          end
+          log("found product with this field #{variant_comparator_field}=#{row[variant_comparator_column]}")
+          p.update_attribute(:deleted_at, nil) if p.deleted_at #Un-delete product if it is there
+          p.variants.each { |variant| variant.update_attribute(:deleted_at, nil) }
+          create_variant_for(p, :with => product_information)
         else
           next unless create_product_using(product_information)
         end
@@ -100,7 +94,18 @@ class ProductImport < ActiveRecord::Base
   # size/color options
   def create_variant_for(product, options = {:with => {}})
     return if options[:with].nil?
-    variant = product.variants.new
+
+    # Just update variant if exists
+    variant = Spree::Variant.find_by_sku(options[:with][:sku])
+    if !variant
+      product.variants.new
+      variant.id = options[:with][:id]
+    else
+      options[:with].delete(:id)
+    end
+
+    field = IMPORT_PRODUCT_SETTINGS[:variant_comparator_field]
+    log  "VARIANT:: #{variant.inspect}  /// #{options.inspect } /// #{options[:with][field]} /// #{field}"
 
     #Remap the options - oddly enough, Spree's product model has master_price and cost_price, while
     #variant has price and cost_price.
@@ -109,11 +114,11 @@ class ProductImport < ActiveRecord::Base
     #First, set the primitive fields on the object (prices, etc.)
     options[:with].each do |field, value|
       variant.send("#{field}=", value) if variant.respond_to?("#{field}=")
-      applicable_option_type = OptionType.find(:first, :conditions => [
+      applicable_option_type = Spree::OptionType.find(:first, :conditions => [
         "lower(presentation) = ? OR lower(name) = ?",
         field.to_s, field.to_s]
       )
-      if applicable_option_type.is_a?(OptionType)
+      if applicable_option_type.is_a?(Spree::OptionType)
         product.option_types << applicable_option_type unless product.option_types.include?(applicable_option_type)
         variant.option_values << applicable_option_type.option_values.find(
           :all,
@@ -122,6 +127,7 @@ class ProductImport < ActiveRecord::Base
       end
     end
 
+    log "VARIANT PRICE #{variant.inspect} /// #{variant.price}"
 
     if variant.valid?
       variant.save
@@ -140,7 +146,7 @@ class ProductImport < ActiveRecord::Base
       log("Variant of SKU #{variant.sku} successfully imported.\n")
     else
       log("A variant could not be imported - here is the information we have:\n" +
-          "#{pp options[:with]}, :error")
+          "#{pp options[:with]}, #{variant.errors.full_messages.join(', ')}")
       return false
     end
   end
@@ -151,11 +157,12 @@ class ProductImport < ActiveRecord::Base
   # product we have gathered, and creating the product and related objects.
   # It also logs throughout the method to try and give some indication of process.
   def create_product_using(params_hash)
-    product = Product.new
+    product = Spree::Product.new
 
     #The product is inclined to complain if we just dump all params
     # into the product (including images and taxonomies).
     # What this does is only assigns values to products if the product accepts that field.
+    params_hash[:price] ||= params_hash[:master_price]
     params_hash.each do |field, value|
       product.send("#{field}=", value) if product.respond_to?("#{field}=")
     end
@@ -165,7 +172,7 @@ class ProductImport < ActiveRecord::Base
     #We can't continue without a valid product here
     unless product.valid?
       log("A product could not be imported - here is the information we have:\n" +
-          "#{pp params_hash}, :error")
+          "#{pp params_hash}, #{product.errors.full_messages.join(', ')}")
       return false
     end
 
@@ -255,7 +262,7 @@ class ProductImport < ActiveRecord::Base
     #The image can be fetched from an HTTP or local source - either method returns a Tempfile
     file = filename =~ /\Ahttp[s]*:\/\// ? fetch_remote_image(filename) : fetch_local_image(filename)
     #An image has an attachment (the image file) and some object which 'views' it
-    product_image = Image.new({:attachment => file,
+    product_image = Spree::Image.new({:attachment => file,
                               :viewable => product_or_variant,
                               :position => product_or_variant.images.length
                               })
@@ -309,8 +316,8 @@ class ProductImport < ActiveRecord::Base
     #Using find_or_create_by_name is more elegant, but our magical params code automatically downcases
     # the taxonomy name, so unless we are using MySQL, this isn't going to work.
     taxonomy_name = taxonomy
-    taxonomy = Taxonomy.find(:first, :conditions => ["lower(name) = ?", taxonomy])
-    taxonomy = Taxonomy.create(:name => taxonomy_name.capitalize) if taxonomy.nil? && IMPORT_PRODUCT_SETTINGS[:create_missing_taxonomies]
+    taxonomy = Spree::Taxonomy.find(:first, :conditions => ["lower(name) = ?", taxonomy])
+    taxonomy = Spree::Taxonomy.create(:name => taxonomy_name.capitalize) if taxonomy.nil? && IMPORT_PRODUCT_SETTINGS[:create_missing_taxonomies]
 
     taxon_hierarchy.split(/\s*\&\s*/).each do |hierarchy|
       hierarchy = hierarchy.split(/\s*>\s*/)
