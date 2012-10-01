@@ -188,7 +188,7 @@ class ProductImport < ActiveRecord::Base
 
       #Finally, attach any images that have been specified
       IMPORT_PRODUCT_SETTINGS[:image_fields].each do |field|
-        find_and_attach_image_to(product, params_hash[field.to_sym])
+        find_and_attach_image_to(product.master, params_hash[field.to_sym])
       end
 
       if IMPORT_PRODUCT_SETTINGS[:multi_domain_importing] && product.respond_to?(:stores)
@@ -256,10 +256,10 @@ class ProductImport < ActiveRecord::Base
     file = filename =~ /\Ahttp[s]*:\/\// ? fetch_remote_image(filename) : fetch_local_image(filename)
     #An image has an attachment (the image file) and some object which 'views' it
     product_image = Image.new({:attachment => file,
-                              :viewable => product_or_variant,
                               :position => product_or_variant.images.length
                               })
 
+    product_image.viewable = product_or_variant
     product_or_variant.images << product_image if product_image.save
   end
 
