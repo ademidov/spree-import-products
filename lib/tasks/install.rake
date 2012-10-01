@@ -13,7 +13,7 @@ namespace :import_products do
       Spree::FileUtilz.mirror_files(source, destination)
       
       puts "NOTE: This extensions uses delayed job - you need to generate additional migrations for" +
-      " this gem by executing `rails generate delayed_job_migrations'"
+      " this gem by executing `rails generate delayed_job_active_record'"
     end
   end
 
