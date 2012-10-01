@@ -1,4 +1,4 @@
-class Admin::ProductImportsController < Admin::BaseController
+class Spree::Admin::ProductImportsController < Spree::Admin::BaseController
 
   #Sorry for not using resource_controller railsdog - I wanted to, but then... I did it this way.
   #Verbosity is nice?

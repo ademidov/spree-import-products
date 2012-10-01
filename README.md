@@ -23,8 +23,8 @@ FEATURES
 
 DELAYED JOB
 ==============
-This gem will require (or will install for you), [delayed_job](https://www.github.com/tobi/delayed_job).
-Once the gem has installed and you have run migrations, you should also run `rails generator delayed_job` to create the tables that delayed_job requires.
+This gem will require (or will install for you), [delayed_job](https://www.github.com/collectiveidea/delayed_job).
+Once the gem has installed and you have run migrations, you should also run `rails generate delayed_job:active_record` to create the tables that delayed_job requires.
 
 Delayed Job also requires that you run 'workers' in the background to pop jobs off the queue and process them.
 This setup may seem like extra work, but believe me, it pays off - with this method, users get an immediate confirmation that their import is on it's way, with a confirmation later on with full details - this is much better than the previous method where the actual processing was completed during the request, with no feedback reaching the user until after the import had finished.

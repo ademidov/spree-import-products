@@ -22,7 +22,7 @@ class ProductImport < ActiveRecord::Base
   def import_data!
     begin
       #Get products *before* import -
-      @products_before_import = Product.all
+      @products_before_import = Spree::Product.all
       @names_of_products_before_import = []
       @products_before_import.each do |product|
         @names_of_products_before_import << product.name
@@ -62,7 +62,7 @@ class ProductImport < ActiveRecord::Base
 
         if IMPORT_PRODUCT_SETTINGS[:create_variants]
           field = IMPORT_PRODUCT_SETTINGS[:variant_comparator_field].to_s
-          if p = Product.find(:first, :conditions => ["#{field} = ?", row[col[field.to_sym]]])
+          if p = Spree::Product.find(:first, :conditions => ["#{field} = ?", row[col[field.to_sym]]])
             p.update_attribute(:deleted_at, nil) if p.deleted_at #Un-delete product if it is there
             p.variants.each { |variant| variant.update_attribute(:deleted_at, nil) }
             create_variant_for(p, :with => product_information)
@@ -151,7 +151,7 @@ class ProductImport < ActiveRecord::Base
   # product we have gathered, and creating the product and related objects.
   # It also logs throughout the method to try and give some indication of process.
   def create_product_using(params_hash)
-    product = Product.new
+    product = Spree::Product.new
 
     #The product is inclined to complain if we just dump all params
     # into the product (including images and taxonomies).
@@ -188,7 +188,7 @@ class ProductImport < ActiveRecord::Base
 
       #Finally, attach any images that have been specified
       IMPORT_PRODUCT_SETTINGS[:image_fields].each do |field|
-        find_and_attach_image_to(product, params_hash[field.to_sym])
+        find_and_attach_image_to(product.master, params_hash[field.to_sym])
       end
 
       if IMPORT_PRODUCT_SETTINGS[:multi_domain_importing] && product.respond_to?(:stores)
@@ -255,11 +255,11 @@ class ProductImport < ActiveRecord::Base
     #The image can be fetched from an HTTP or local source - either method returns a Tempfile
     file = filename =~ /\Ahttp[s]*:\/\// ? fetch_remote_image(filename) : fetch_local_image(filename)
     #An image has an attachment (the image file) and some object which 'views' it
-    product_image = Image.new({:attachment => file,
-                              :viewable => product_or_variant,
+    product_image = Spree::Image.new({:attachment => file,
                               :position => product_or_variant.images.length
                               })
 
+    product_image.viewable = product_or_variant
     product_or_variant.images << product_image if product_image.save
   end
 
@@ -309,8 +309,8 @@ class ProductImport < ActiveRecord::Base
     #Using find_or_create_by_name is more elegant, but our magical params code automatically downcases
     # the taxonomy name, so unless we are using MySQL, this isn't going to work.
     taxonomy_name = taxonomy
-    taxonomy = Taxonomy.find(:first, :conditions => ["lower(name) = ?", taxonomy])
-    taxonomy = Taxonomy.create(:name => taxonomy_name.capitalize) if taxonomy.nil? && IMPORT_PRODUCT_SETTINGS[:create_missing_taxonomies]
+    taxonomy = Spree::Taxonomy.find(:first, :conditions => ["lower(name) = ?", taxonomy])
+    taxonomy = Spree::Taxonomy.create(:name => taxonomy_name.capitalize) if taxonomy.nil? && IMPORT_PRODUCT_SETTINGS[:create_missing_taxonomies]
 
     taxon_hierarchy.split(/\s*\&\s*/).each do |hierarchy|
       hierarchy = hierarchy.split(/\s*>\s*/)
