@@ -11,7 +11,7 @@ module ImportProducts
         Rails.env.production? ? require(c) : load(c)
       end
 
-      UserMailer.send(:include, ImportProducts::UserMailerExt)
+      Spree::UserMailer.send(:include, ImportProducts::UserMailerExt)
 
     end
 
