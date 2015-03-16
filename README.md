@@ -48,9 +48,11 @@ Examples
 CONFIGURATION
 =============
 
-All the configuration for this extension is inside the initializer generated when you run `rake import_products:install`. It's basically a big hash with manual column mappings (If you don't want to use dynamic column mapping), and a bunch of settings that control the workflow of the extension. Take a look at the initializer to see more details on each field.
+All the configuration for this extension is inside the initializer generated when you run `rails g import_products:install`. It's basically a big hash with manual column mappings (If you don't want to use dynamic column mapping), and a bunch of settings that control the workflow of the extension. Take a look at the initializer to see more details on each field.
 
 In most cases, it's unlikely you will need to change defaults, but it's there is you need it.
+
+If you encounter a `cannot load such file -- delayed/backend/active_record` error add `gem 'delayed_job_active_record'` to your Gemfile.
 
 
 TODOs
@@ -62,7 +64,7 @@ INSTALLATION
 1. Add the gem to your Gemfile, and run bundle install.
     `gem 'import_products', :git => 'git://github.com/joshmcarthur/spree-import-products.git'` then `bundle install`
 
-2. 'Install' the extension - copy a migration and an initializer. `rake import_products:install`
+2. 'Install' the extension - copy a migration and an initializer. `rails g import_products:install`
 
 3. Do a db migration. `rake db:migrate`
 

@@ -3,7 +3,8 @@ require 'delayed_job'
 
 module ImportProducts
   class Engine < Rails::Engine
-
+    engine_name 'import_products'
+    
     config.autoload_paths += %W(#{config.root}/lib)
 
     def self.activate
